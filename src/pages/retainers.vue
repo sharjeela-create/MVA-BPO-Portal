@@ -11,11 +11,10 @@ type DailyDealFlow = {
   submission_id: string
   insured_name: string | null
   client_phone_number: string | null
-  lead_vendor: string | null
   date: string | null
   status: string | null
-  agent: string | null
-  carrier: string | null
+  assigned_attorney_id: string | null
+  attorney_email?: string | null
   created_at: string | null
 }
 
@@ -34,13 +33,10 @@ const filteredRows = computed(() => {
 
   return rows.value.filter((r) => {
     const haystack = [
-      r.submission_id,
       r.insured_name ?? '',
       r.client_phone_number ?? '',
-      r.lead_vendor ?? '',
       r.status ?? '',
-      r.agent ?? '',
-      r.carrier ?? ''
+      r.attorney_email ?? ''
     ].join(' ').toLowerCase()
 
     return haystack.includes(q)
@@ -49,28 +45,24 @@ const filteredRows = computed(() => {
 
 const columns: TableColumn<DailyDealFlow>[] = [
   {
-    accessorKey: 'submission_id',
-    header: 'Submission ID'
+    accessorKey: 'date',
+    header: 'Date'
   },
   {
     accessorKey: 'insured_name',
-    header: 'Insured'
+    header: 'Customer Name'
   },
   {
     accessorKey: 'client_phone_number',
-    header: 'Phone'
-  },
-  {
-    accessorKey: 'lead_vendor',
-    header: 'Vendor'
+    header: 'Phone Number'
   },
   {
     accessorKey: 'status',
     header: 'Status'
   },
   {
-    accessorKey: 'date',
-    header: 'Date'
+    accessorKey: 'assigned_attorney',
+    header: 'Assigned Lawyer'
   },
   {
     id: 'actions',
@@ -108,7 +100,7 @@ const load = async () => {
 
     let q = supabase
       .from('daily_deal_flow')
-      .select('id,submission_id,insured_name,client_phone_number,lead_vendor,date,status,agent,carrier,created_at')
+      .select('id,submission_id,insured_name,client_phone_number,date,status,assigned_attorney_id,created_at')
       .order('created_at', { ascending: false })
       .limit(250)
 
@@ -120,7 +112,27 @@ const load = async () => {
 
     if (supaError) throw supaError
 
-    rows.value = (data ?? []) as DailyDealFlow[]
+    const dealFlows = (data ?? []) as DailyDealFlow[]
+
+    // Fetch attorney details for rows that have assigned_attorney_id
+    const attorneyIds = [...new Set(dealFlows.filter(d => d.assigned_attorney_id).map(d => d.assigned_attorney_id))]
+    
+    if (attorneyIds.length > 0) {
+      const { data: attorneys } = await supabase
+        .from('profiles')
+        .select('id,email')
+        .in('id', attorneyIds)
+
+      const attorneyMap = new Map((attorneys ?? []).map((a: any) => [a.id, a.email]))
+      
+      dealFlows.forEach(flow => {
+        if (flow.assigned_attorney_id) {
+          flow.attorney_email = attorneyMap.get(flow.assigned_attorney_id) ?? null
+        }
+      })
+    }
+
+    rows.value = dealFlows
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to load retainers'
     error.value = msg
@@ -164,7 +176,7 @@ const openRow = (row: DailyDealFlow) => {
           v-model="query"
           class="max-w-md"
           icon="i-lucide-search"
-          placeholder="Search by submission, name, phone, vendor..."
+          placeholder="Search by name, phone, status, lawyer..."
         />
 
         <UBadge
@@ -182,67 +194,67 @@ const openRow = (row: DailyDealFlow) => {
         :description="error"
       />
 
-      <UTable
-        class="mt-4"
-        :loading="loading"
-        :data="filteredRows"
-        :columns="columns"
-        :ui="{
-          base: 'w-full table-fixed border-separate border-spacing-0',
-          thead: '[&>tr]:bg-elevated/50 [&>tr]:after:content-none',
-          tbody: '[&>tr]:last:[&>td]:border-b-0',
-          th: 'first:rounded-l-lg last:rounded-r-lg border-y border-default first:border-l last:border-r',
-          td: 'border-b border-default'
-        }"
-      >
-        <template #submission_id-cell="{ row }">
-          <button type="button" class="block w-full text-left font-medium text-highlighted" @click="openRow(row.original)">
-            {{ row.original.submission_id }}
-          </button>
-        </template>
+      <UCard class="mt-4" :ui="{ body: 'p-0' }">
+        <UTable
+          :loading="loading"
+          :data="filteredRows"
+          :columns="columns"
+          :ui="{
+            base: 'w-full table-fixed',
+            thead: '[&>tr]:bg-elevated/50',
+            tbody: '[&>tr]:hover:bg-muted/50 [&>tr]:cursor-pointer',
+            th: 'px-4 py-3 text-left',
+            td: 'px-4 py-3'
+          }"
+        >
+          <template #date-cell="{ row }">
+            <button type="button" class="block w-full text-left" @click="openRow(row.original)">
+              {{ row.original.date ?? '—' }}
+            </button>
+          </template>
 
-        <template #insured_name-cell="{ row }">
-          <button type="button" class="block w-full text-left" @click="openRow(row.original)">
-            {{ row.original.insured_name ?? '—' }}
-          </button>
-        </template>
+          <template #insured_name-cell="{ row }">
+            <button type="button" class="block w-full text-left font-medium text-highlighted" @click="openRow(row.original)">
+              {{ row.original.insured_name ?? '—' }}
+            </button>
+          </template>
 
-        <template #client_phone_number-cell="{ row }">
-          <button type="button" class="block w-full text-left" @click="openRow(row.original)">
-            {{ row.original.client_phone_number ?? '—' }}
-          </button>
-        </template>
+          <template #client_phone_number-cell="{ row }">
+            <button type="button" class="block w-full text-left" @click="openRow(row.original)">
+              {{ row.original.client_phone_number ?? '—' }}
+            </button>
+          </template>
 
-        <template #lead_vendor-cell="{ row }">
-          <button type="button" class="block w-full text-left" @click="openRow(row.original)">
-            {{ row.original.lead_vendor ?? '—' }}
-          </button>
-        </template>
+          <template #status-cell="{ row }">
+            <button type="button" class="block w-full text-left" @click="openRow(row.original)">
+              <UBadge
+                v-if="row.original.status"
+                variant="subtle"
+                :label="row.original.status"
+              />
+              <span v-else>—</span>
+            </button>
+          </template>
 
-        <template #status-cell="{ row }">
-          <button type="button" class="block w-full text-left" @click="openRow(row.original)">
-            {{ row.original.status ?? '—' }}
-          </button>
-        </template>
+          <template #assigned_attorney-cell="{ row }">
+            <button type="button" class="block w-full text-left" @click="openRow(row.original)">
+              {{ row.original.attorney_email ?? '—' }}
+            </button>
+          </template>
 
-        <template #date-cell="{ row }">
-          <button type="button" class="block w-full text-left" @click="openRow(row.original)">
-            {{ row.original.date ?? '—' }}
-          </button>
-        </template>
-
-        <template #actions-cell="{ row }">
-          <div class="flex justify-center">
-            <UButton
-              icon="i-lucide-eye"
-              color="neutral"
-              variant="outline"
-              label="View"
-              @click="openRow(row.original)"
-            />
-          </div>
-        </template>
-      </UTable>
+          <template #actions-cell="{ row }">
+            <div class="flex justify-center">
+              <UButton
+                icon="i-lucide-eye"
+                color="neutral"
+                variant="outline"
+                label="View"
+                @click="openRow(row.original)"
+              />
+            </div>
+          </template>
+        </UTable>
+      </UCard>
     </template>
   </UDashboardPanel>
 </template>

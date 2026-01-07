@@ -237,9 +237,6 @@ onMounted(async () => {
 
     <template #body>
       <div class="space-y-4">
-        <p class="text-sm text-white/70">
-          Manage roles and access. Creating a user will send an invite email from Supabase.
-        </p>
 
         <UAlert
           v-if="errorMessage"

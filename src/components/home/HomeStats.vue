@@ -51,14 +51,11 @@ const stats = ref<Stat[]>([])
 
 watch([() => props.period, () => props.range], () => {
   stats.value = baseStats.map((stat) => {
-    const value = randomInt(stat.minValue, stat.maxValue)
-    const variation = randomInt(stat.minVariation, stat.maxVariation)
-
     return {
       title: stat.title,
       icon: stat.icon,
-      value: stat.formatter ? stat.formatter(value) : value,
-      variation
+      value: stat.formatter ? stat.formatter(0) : 0,
+      variation: 0
     }
   })
 }, { immediate: true })
